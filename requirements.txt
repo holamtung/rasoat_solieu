@@ -1,0 +1,5 @@
+polars
+openpyxl
+xlsxwriter
+ipywidgets
+fastexcel
