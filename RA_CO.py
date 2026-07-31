@@ -16,13 +16,14 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Hàm hỗ trợ đọc file Excel an toàn
-def read_excel_safe(file_bytes):
+# Hàm đọc Excel bằng Pandas rồi chuyển sang Polars để tránh lỗi engine đọc file
+def read_excel_safe(uploaded_file):
+    file_bytes = uploaded_file.getvalue()
     try:
-        return pl.read_excel(io.BytesIO(file_bytes))
-    except Exception:
-        # Nếu Polars đọc lỗi, dùng Pandas đọc rồi chuyển sang Polars
         df_pd = pd.read_excel(io.BytesIO(file_bytes))
+        return pl.from_pandas(df_pd)
+    except Exception:
+        df_pd = pd.read_excel(io.BytesIO(file_bytes), skiprows=1)
         return pl.from_pandas(df_pd)
 
 col1, col2 = st.columns(2)
@@ -37,8 +38,7 @@ with col1:
     if uploaded_file_bnn is not None:
         with st.spinner("Đang xử lý dữ liệu CO-BNN..."):
             try:
-                file_bytes = uploaded_file_bnn.read()
-                df = read_excel_safe(file_bytes)
+                df = read_excel_safe(uploaded_file_bnn)
 
                 df_gp_dup = (
                     df.filter(
@@ -107,8 +107,7 @@ with col2:
     if uploaded_file_hd is not None:
         with st.spinner("Đang xử lý dữ liệu Hoá đơn..."):
             try:
-                file_bytes = uploaded_file_hd.read()
-                df = read_excel_safe(file_bytes)
+                df = read_excel_safe(uploaded_file_hd)
 
                 # 1. Lọc các dòng có "Số hoá đơn TM" hợp lệ
                 df_valid = df.filter(
