@@ -127,3 +127,8 @@ if uploaded_file is not None:
 
             except Exception as e:
                 st.error(f"[LỖI XỬ LÝ]: {str(e)}")
+                st.markdown("---")
+st.markdown(
+    "<p style='text-align: center; color: #6c757d; font-size: 13px;'><b>COPYRIGHT: HỒ LÂM TÙNG</b></p>",
+    unsafe_allow_html=True
+)
