@@ -7,7 +7,7 @@ st.markdown(
     """
 <div style="background-color: #f8f9fa; padding: 20px; border-radius: 14px; border-left: 14px solid #0d6efd; margin-bottom: 20px;">
 <h3 style="margin: 0; color: #0d6efd; font-family: sans-serif;">RÀ SOÁT DỮ LIỆU TRÙNG LẶP (SỐ BNN & Số C/O)</h3>
-<p style="margin: 10px 0 0 0; color: #6c757d; font-size: 20px;">Hướng dẫn: File Exel tải về từ phần mềm SLXNK bắt buộc phải xoá toàn bộ 07 dòng đầu tiên, chỉ để lại phần tiêu đề của các cột.</p>
+<p style="margin: 10px 0 0 0; color: #6c757d; font-size: 20px;">Hướng dẫn: File Exel tải về từ phần mềm SLXNK bắt buộc phải xoá toàn bộ 08 dòng đầu tiên, chỉ để lại phần tiêu đề của các cột.</p>
 </div>
 """,
     unsafe_allow_html=True,
