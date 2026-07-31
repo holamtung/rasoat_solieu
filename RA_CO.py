@@ -16,15 +16,22 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Hàm đọc Excel bằng Pandas rồi chuyển sang Polars để tránh lỗi engine đọc file
-def read_excel_safe(uploaded_file):
+# Hàm đọc Excel an toàn tuyệt đối, tránh lỗi C-extension/PyArrow
+def read_excel_safe(uploaded_file, check_col=None):
     file_bytes = uploaded_file.getvalue()
+    
     try:
         df_pd = pd.read_excel(io.BytesIO(file_bytes))
-        return pl.from_pandas(df_pd)
+        if check_col and check_col not in df_pd.columns:
+            df_pd = pd.read_excel(io.BytesIO(file_bytes), skiprows=1)
     except Exception:
         df_pd = pd.read_excel(io.BytesIO(file_bytes), skiprows=1)
-        return pl.from_pandas(df_pd)
+        
+    # Làm sạch dữ liệu NaN/NaT và chuyển thành Python dict thuần
+    df_pd = df_pd.astype(object).where(pd.notnull(df_pd), None)
+    df_dict = {str(col).strip(): df_pd[col].tolist() for col in df_pd.columns}
+    
+    return pl.DataFrame(df_dict)
 
 col1, col2 = st.columns(2)
 
@@ -38,7 +45,7 @@ with col1:
     if uploaded_file_bnn is not None:
         with st.spinner("Đang xử lý dữ liệu CO-BNN..."):
             try:
-                df = read_excel_safe(uploaded_file_bnn)
+                df = read_excel_safe(uploaded_file_bnn, check_col="Số GP")
 
                 df_gp_dup = (
                     df.filter(
@@ -89,10 +96,17 @@ with col1:
                 st.success(f"ĐÃ PHÁT HIỆN: {final_df.height} DÒNG VI PHẠM TRÙNG LẶP CO-BNN")
                 st.dataframe(final_df.to_pandas(), use_container_width=True)
 
-                output_file = "Ket_qua_CO_BNN.xlsx"
-                final_df.write_excel(output_file)
-                with open(output_file, "rb") as f:
-                    st.download_button(label="Tải Báo Cáo CO-BNN", data=f, file_name=output_file, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                buffer = io.BytesIO()
+                with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+                    final_df.to_pandas().to_excel(writer, index=False)
+                buffer.seek(0)
+
+                st.download_button(
+                    label="Tải Báo Cáo CO-BNN",
+                    data=buffer,
+                    file_name="Ket_qua_CO_BNN.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
             except Exception as e:
                 st.error(f"[LỖI XỬ LÝ CO-BNN]: {str(e)}")
 
@@ -107,15 +121,15 @@ with col2:
     if uploaded_file_hd is not None:
         with st.spinner("Đang xử lý dữ liệu Hoá đơn..."):
             try:
-                df = read_excel_safe(uploaded_file_hd)
+                df = read_excel_safe(uploaded_file_hd, check_col="Số hoá đơn TM")
 
-                # 1. Lọc các dòng có "Số hoá đơn TM" hợp lệ
+                # 1. Lọc dòng có "Số hoá đơn TM" hợp lệ
                 df_valid = df.filter(
                     pl.col("Số hoá đơn TM").is_not_null() & 
                     (pl.col("Số hoá đơn TM").cast(pl.String).str.strip_chars() != "")
                 )
                 
-                # 2. Tìm nhóm trùng (Mã DN + Đơn vị đối tác + Số hoá đơn TM) có >= 2 Số TK khác nhau
+                # 2. Tìm nhóm trùng có từ 2 Số TK khác nhau trở lên
                 dup_groups = (
                     df_valid.group_by(["Mã DN", "Đơn vị đối tác", "Số hoá đơn TM"])
                     .agg(pl.col("Số TK").n_unique().alias("so_tk_count"))
@@ -134,10 +148,17 @@ with col2:
                 st.success(f"ĐÃ PHÁT HIỆN: {final_hd_df.height} DÒNG VI PHẠM TRÙNG HOÁ ĐƠN")
                 st.dataframe(final_hd_df.to_pandas(), use_container_width=True)
 
-                output_file_hd = "Ket_qua_Hoa_Don.xlsx"
-                final_hd_df.write_excel(output_file_hd)
-                with open(output_file_hd, "rb") as f:
-                    st.download_button(label="Tải Báo Cáo Hoá Đơn", data=f, file_name=output_file_hd, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                buffer_hd = io.BytesIO()
+                with pd.ExcelWriter(buffer_hd, engine="openpyxl") as writer:
+                    final_hd_df.to_pandas().to_excel(writer, index=False)
+                buffer_hd.seek(0)
+
+                st.download_button(
+                    label="Tải Báo Cáo Hoá Đơn",
+                    data=buffer_hd,
+                    file_name="Ket_qua_Hoa_Don.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
             except Exception as e:
                 st.error(f"[LỖI XỬ LÝ HOÁ ĐƠN]: {str(e)}")
 
