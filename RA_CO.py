@@ -1,5 +1,6 @@
 # COPYRIGHT: HỒ LÂM TÙNG
 import io
+import pandas as pd
 import polars as pl
 import streamlit as st
 
@@ -15,7 +16,15 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Chia giao diện thành 2 cột độc lập
+# Hàm hỗ trợ đọc file Excel an toàn
+def read_excel_safe(file_bytes):
+    try:
+        return pl.read_excel(io.BytesIO(file_bytes))
+    except Exception:
+        # Nếu Polars đọc lỗi, dùng Pandas đọc rồi chuyển sang Polars
+        df_pd = pd.read_excel(io.BytesIO(file_bytes))
+        return pl.from_pandas(df_pd)
+
 col1, col2 = st.columns(2)
 
 # ==========================================
@@ -29,10 +38,7 @@ with col1:
         with st.spinner("Đang xử lý dữ liệu CO-BNN..."):
             try:
                 file_bytes = uploaded_file_bnn.read()
-                try:
-                    df = pl.read_excel(io.BytesIO(file_bytes))
-                except Exception:
-                    df = pl.read_excel(io.BytesIO(file_bytes), read_options={"has_header": True})
+                df = read_excel_safe(file_bytes)
 
                 df_gp_dup = (
                     df.filter(
@@ -102,10 +108,7 @@ with col2:
         with st.spinner("Đang xử lý dữ liệu Hoá đơn..."):
             try:
                 file_bytes = uploaded_file_hd.read()
-                try:
-                    df = pl.read_excel(io.BytesIO(file_bytes))
-                except Exception:
-                    df = pl.read_excel(io.BytesIO(file_bytes), read_options={"has_header": True})
+                df = read_excel_safe(file_bytes)
 
                 # 1. Lọc các dòng có "Số hoá đơn TM" hợp lệ
                 df_valid = df.filter(
@@ -138,7 +141,6 @@ with col2:
                     st.download_button(label="Tải Báo Cáo Hoá Đơn", data=f, file_name=output_file_hd, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
             except Exception as e:
                 st.error(f"[LỖI XỬ LÝ HOÁ ĐƠN]: {str(e)}")
-
 
 st.markdown("---")
 st.markdown("<p style='text-align: center; color: #6c757d; font-size: 13px;'><b>COPYRIGHT: HỒ LÂM TÙNG - 0988 767413 - CHI CỤC HẢI QUAN KHU VỰC VII</b></p>", unsafe_allow_html=True)
