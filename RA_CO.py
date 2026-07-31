@@ -17,18 +17,36 @@ st.markdown(
 )
 
 
-# Hàm đọc Excel ép toàn bộ dữ liệu về kiểu String (chuỗi) để tránh lỗi trộn kiểu dữ liệu
-def read_excel_safe(uploaded_file, required_col=None):
+# Hàm đọc Excel tự động quét tìm chính xác dòng chứa Tiêu đề cột (Header)
+def read_excel_safe(uploaded_file, expected_keywords=None):
     file_bytes = uploaded_file.getvalue()
 
-    # Đọc với dtype=str để ép kiểu toàn bộ về chuỗi
-    df_pd = pd.read_excel(io.BytesIO(file_bytes), dtype=str)
-    df_pd.columns = df_pd.columns.astype(str).str.strip()
+    # 1. Quét 20 dòng đầu để tìm dòng chứa các từ khóa tiêu đề
+    df_raw = pd.read_excel(io.BytesIO(file_bytes), header=None, nrows=20, dtype=str)
+    header_row = 0
 
-    # Tự động skiprows=1 nếu chưa khớp tiêu đề
-    if required_col and required_col not in df_pd.columns:
-        df_pd = pd.read_excel(io.BytesIO(file_bytes), skiprows=1, dtype=str)
-        df_pd.columns = df_pd.columns.astype(str).str.strip()
+    if expected_keywords:
+        for idx, row in df_raw.iterrows():
+            row_text = " ".join(row.dropna().tolist()).lower()
+            if any(kw.lower() in row_text for kw in expected_keywords):
+                header_row = idx
+                break
+
+    # 2. Đọc file từ đúng dòng header tìm được
+    df_pd = pd.read_excel(io.BytesIO(file_bytes), header=header_row, dtype=str).fillna("")
+    
+    # 3. Chuẩn hóa & xử lý tránh trùng lặp tên cột
+    cols = []
+    counts = {}
+    for col in df_pd.columns:
+        c_str = str(col).strip() if str(col).strip() != "" else "Unnamed"
+        if c_str in counts:
+            counts[c_str] += 1
+            cols.append(f"{c_str}_{counts[c_str]}")
+        else:
+            counts[c_str] = 0
+            cols.append(c_str)
+    df_pd.columns = cols
 
     return pl.from_pandas(df_pd)
 
@@ -39,26 +57,18 @@ col1, col2 = st.columns(2)
 # CỘT TRÁI: KIỂM TRA CO-BNN
 # ==========================================
 with col1:
-    st.markdown(
-        "<h4 style='color: #0d6efd;'>1. Kiểm tra C/O - BNN</h4>",
-        unsafe_allow_html=True,
-    )
-    uploaded_file_bnn = st.file_uploader(
-        "Tải file Excel (C/O - BNN)", type=["xlsx", "xls"], key="uploader_bnn"
-    )
+    st.markdown("<h4 style='color: #0d6efd;'>1. Kiểm tra C/O - BNN</h4>", unsafe_allow_html=True)
+    uploaded_file_bnn = st.file_uploader("Tải file Excel (C/O - BNN)", type=["xlsx", "xls"], key="uploader_bnn")
 
     if uploaded_file_bnn is not None:
         with st.spinner("Đang xử lý dữ liệu CO-BNN..."):
             try:
-                df = read_excel_safe(uploaded_file_bnn, required_col="Số GP")
+                df = read_excel_safe(uploaded_file_bnn, expected_keywords=["Số GP", "Số TK"])
 
                 df_gp_dup = (
                     df.filter(
                         pl.col("Số GP").is_not_null()
-                        & pl.col("Số GP")
-                        .cast(pl.String)
-                        .str.strip_chars()
-                        .str.starts_with("BNN")
+                        & pl.col("Số GP").cast(pl.String).str.strip_chars().str.starts_with("BNN")
                     )
                     .group_by("Số GP")
                     .len()
@@ -77,11 +87,7 @@ with col1:
                     ])
                     .explode("Mã E2 List")
                     .filter(pl.col("Mã E2 List").is_not_null())
-                    .with_columns(
-                        pl.col("Mã E2 List")
-                        .str.strip_chars(".,:; ")
-                        .alias("Mã E2")
-                    )
+                    .with_columns(pl.col("Mã E2 List").str.strip_chars(".,:; ").alias("Mã E2"))
                     .filter(pl.col("Mã E2") != "")
                 )
 
@@ -96,25 +102,14 @@ with col1:
                 stk_with_dup_e2 = (
                     df_e2_extracted.filter(pl.col("Mã E2").is_in(dup_e2_list))
                     .group_by("Số TK")
-                    .agg(
-                        pl.col("Mã E2")
-                        .unique()
-                        .str.join(", ")
-                        .alias("Mã E2 trùng")
-                    )
+                    .agg(pl.col("Mã E2").unique().str.join(", ").alias("Mã E2 trùng"))
                 )
 
                 final_df = (
                     df.join(stk_with_dup_e2, on="Số TK", how="left")
-                    .filter(
-                        pl.col("Số GP").is_in(dup_gp_list)
-                        | pl.col("Mã E2 trùng").is_not_null()
-                    )
+                    .filter(pl.col("Số GP").is_in(dup_gp_list) | pl.col("Mã E2 trùng").is_not_null())
                     .with_columns([
-                        pl.when(
-                            pl.col("Số GP").is_in(dup_gp_list)
-                            & pl.col("Mã E2 trùng").is_not_null()
-                        )
+                        pl.when(pl.col("Số GP").is_in(dup_gp_list) & pl.col("Mã E2 trùng").is_not_null())
                         .then(pl.lit("Trùng GP & Mã E2"))
                         .when(pl.col("Số GP").is_in(dup_gp_list))
                         .then(pl.lit("Trùng Số GP (BNN)"))
@@ -134,10 +129,7 @@ with col1:
                     .sort("Lý do trùng")
                 )
 
-                st.success(
-                    f"ĐÃ PHÁT HIỆN: {final_df.height} DÒNG VI PHẠM TRÙNG LẶP"
-                    " CO-BNN"
-                )
+                st.success(f"ĐÃ PHÁT HIỆN: {final_df.height} DÒNG VI PHẠM TRÙNG LẶP CO-BNN")
                 st.dataframe(final_df.to_pandas(), use_container_width=True)
 
                 output_file = "Ket_qua_CO_BNN.xlsx"
@@ -157,25 +149,17 @@ with col1:
 # CỘT PHẢI: KIỂM TRA HOÁ ĐƠN
 # ==========================================
 with col2:
-    st.markdown(
-        "<h4 style='color: #198754;'>2. Kiểm tra Hoá Đơn TM</h4>",
-        unsafe_allow_html=True,
-    )
-    uploaded_file_hd = st.file_uploader(
-        "Tải file Excel (Hoá Đơn)", type=["xlsx", "xls"], key="uploader_hd"
-    )
+    st.markdown("<h4 style='color: #198754;'>2. Kiểm tra Hoá Đơn TM</h4>", unsafe_allow_html=True)
+    uploaded_file_hd = st.file_uploader("Tải file Excel (Hoá Đơn)", type=["xlsx", "xls"], key="uploader_hd")
 
     if uploaded_file_hd is not None:
         with st.spinner("Đang xử lý dữ liệu Hoá đơn..."):
             try:
-                df = read_excel_safe(uploaded_file_hd, required_col="Số hoá đơn TM")
+                # Quét tìm dòng header chứa "đơn TM" hoặc "Số TK"
+                df = read_excel_safe(uploaded_file_hd, expected_keywords=["đơn TM", "Số TK", "Mã DN"])
 
-                # Chuẩn hóa nếu tiêu đề ghi là "Số hóa đơn TM" (chữ o)
-                rename_dict = {
-                    col: "Số hoá đơn TM"
-                    for col in df.columns
-                    if "đơn TM" in str(col)
-                }
+                # Chuẩn hóa tên cột hóa/hoá đơn
+                rename_dict = {col: "Số hoá đơn TM" for col in df.columns if "đơn TM" in str(col)}
                 if rename_dict:
                     df = df.rename(rename_dict)
 
@@ -189,9 +173,7 @@ with col2:
 
                 # 2. Tìm nhóm trùng (Mã DN + Đơn vị đối tác + Số hoá đơn TM) có >= 2 Số TK khác nhau
                 dup_groups = (
-                    df_valid.group_by(
-                        ["Mã DN", "Đơn vị đối tác", "Số hoá đơn TM"]
-                    )
+                    df_valid.group_by(["Mã DN", "Đơn vị đối tác", "Số hoá đơn TM"])
                     .agg(pl.col("Số TK").n_unique().alias("so_tk_count"))
                     .filter(pl.col("so_tk_count") > 1)
                     .select(["Mã DN", "Đơn vị đối tác", "Số hoá đơn TM"])
@@ -215,10 +197,7 @@ with col2:
                     .sort(["Mã DN", "Số hoá đơn TM", "Số TK"])
                 )
 
-                st.success(
-                    f"ĐÃ PHÁT HIỆN: {final_hd_df.height} DÒNG VI PHẠM TRÙNG"
-                    " HOÁ ĐƠN"
-                )
+                st.success(f"ĐÃ PHÁT HIỆN: {final_hd_df.height} DÒNG VI PHẠM TRÙNG HOÁ ĐƠN")
                 st.dataframe(final_hd_df.to_pandas(), use_container_width=True)
 
                 output_file_hd = "Ket_qua_Hoa_Don.xlsx"
@@ -235,7 +214,6 @@ with col2:
 
 st.markdown("---")
 st.markdown(
-    "<p style='text-align: center; color: #6c757d; font-size: 13px;'><b>COPYRIGHT:"
-    " HỒ LÂM TÙNG - 0988 767413 - CHI CỤC HẢI QUAN KHU VỰC VII</b></p>",
+    "<p style='text-align: center; color: #6c757d; font-size: 13px;'><b>COPYRIGHT: HỒ LÂM TÙNG - 0988 767413 - CHI CỤC HẢI QUAN KHU VỰC VII</b></p>",
     unsafe_allow_html=True,
 )
