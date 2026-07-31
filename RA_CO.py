@@ -93,7 +93,7 @@ with col1:
 
 
 # ==========================================
-# CỘT PHẢI: KIỂM TRA HOÁ ĐƠN (SỬA ĐỔI)
+# CỘT PHẢI: KIỂM TRA HOÁ ĐƠN (SỬA LỖI TỰ ĐỘNG TÌM HEADER)
 # ==========================================
 with col2:
     st.markdown("<h4 style='color: #198754;'>2. Kiểm tra Hoá Đơn TM</h4>", unsafe_allow_html=True)
@@ -104,19 +104,24 @@ with col2:
             try:
                 file_bytes = uploaded_file_hd.getvalue()
                 
-                # Đọc dữ liệu qua Pandas để tránh lỗi engine đọc của Polars
-                try:
-                    df_pd = pd.read_excel(io.BytesIO(file_bytes))
-                    if "Số hoá đơn TM" not in df_pd.columns:
-                        df_pd = pd.read_excel(io.BytesIO(file_bytes), skiprows=1)
-                except Exception:
-                    df_pd = pd.read_excel(io.BytesIO(file_bytes), skiprows=1)
+                # 1. Quét 20 dòng đầu để tự động tìm dòng chứa tiêu đề "Số hoá đơn TM" hoặc "Số TK"
+                df_raw = pd.read_excel(io.BytesIO(file_bytes), header=None, nrows=20)
+                header_row = 0
+                for idx, row in df_raw.iterrows():
+                    row_str = row.astype(str).values
+                    if any("Số hoá đơn TM" in cell for cell in row_str) or any("Số TK" in cell for cell in row_str):
+                        header_row = idx
+                        break
+
+                # 2. Đọc lại file đúng dòng header và chuẩn hoá tên cột (xoá khoảng trắng thừa)
+                df_pd = pd.read_excel(io.BytesIO(file_bytes), header=header_row)
+                df_pd.columns = df_pd.columns.astype(str).str.strip()
 
                 # Chuyển đổi thành Polars DataFrame
                 df_pd = df_pd.astype(str)
                 df = pl.from_pandas(df_pd)
 
-                # 1. Lọc các dòng có "Số hoá đơn TM" hợp lệ
+                # 3. Lọc các dòng có "Số hoá đơn TM" hợp lệ
                 df_valid = df.filter(
                     pl.col("Số hoá đơn TM").is_not_null() & 
                     (pl.col("Số hoá đơn TM").str.strip_chars() != "") &
@@ -124,7 +129,7 @@ with col2:
                     (pl.col("Số hoá đơn TM") != "None")
                 )
                 
-                # 2. Tìm nhóm trùng (Mã DN + Đơn vị đối tác + Số hoá đơn TM) có >= 2 Số TK khác nhau
+                # 4. Tìm nhóm trùng (Mã DN + Đơn vị đối tác + Số hoá đơn TM) có >= 2 Số TK khác nhau
                 dup_groups = (
                     df_valid.group_by(["Mã DN", "Đơn vị đối tác", "Số hoá đơn TM"])
                     .agg(pl.col("Số TK").n_unique().alias("so_tk_count"))
@@ -132,7 +137,7 @@ with col2:
                     .select(["Mã DN", "Đơn vị đối tác", "Số hoá đơn TM"])
                 )
                 
-                # 3. Kết xuất
+                # 5. Kết xuất
                 final_hd_df = (
                     df_valid.join(dup_groups, on=["Mã DN", "Đơn vị đối tác", "Số hoá đơn TM"], how="inner")
                     .select(["Số TK", "Ngày ĐK", "Mã DN", "Đơn vị đối tác", "Số hoá đơn TM"])
