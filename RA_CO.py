@@ -1,5 +1,6 @@
 # COPYRIGHT: HỒ LÂM TÙNG
 import io
+import pandas as pd
 import polars as pl
 import streamlit as st
 
@@ -19,7 +20,7 @@ st.markdown(
 col1, col2 = st.columns(2)
 
 # ==========================================
-# CỘT TRÁI: KIỂM TRA CO-BNN
+# CỘT TRÁI: KIỂM TRA CO-BNN (GIỮ NGUYÊN CODE CŨ)
 # ==========================================
 with col1:
     st.markdown("<h4 style='color: #0d6efd;'>1. Kiểm tra C/O - BNN</h4>", unsafe_allow_html=True)
@@ -92,7 +93,7 @@ with col1:
 
 
 # ==========================================
-# CỘT PHẢI: KIỂM TRA HOÁ ĐƠN
+# CỘT PHẢI: KIỂM TRA HOÁ ĐƠN (SỬA ĐỔI)
 # ==========================================
 with col2:
     st.markdown("<h4 style='color: #198754;'>2. Kiểm tra Hoá Đơn TM</h4>", unsafe_allow_html=True)
@@ -101,16 +102,26 @@ with col2:
     if uploaded_file_hd is not None:
         with st.spinner("Đang xử lý dữ liệu Hoá đơn..."):
             try:
-                file_bytes = uploaded_file_hd.read()
+                file_bytes = uploaded_file_hd.getvalue()
+                
+                # Đọc dữ liệu qua Pandas để tránh lỗi engine đọc của Polars
                 try:
-                    df = pl.read_excel(io.BytesIO(file_bytes))
+                    df_pd = pd.read_excel(io.BytesIO(file_bytes))
+                    if "Số hoá đơn TM" not in df_pd.columns:
+                        df_pd = pd.read_excel(io.BytesIO(file_bytes), skiprows=1)
                 except Exception:
-                    df = pl.read_excel(io.BytesIO(file_bytes), read_options={"has_header": True})
+                    df_pd = pd.read_excel(io.BytesIO(file_bytes), skiprows=1)
+
+                # Chuyển đổi thành Polars DataFrame
+                df_pd = df_pd.astype(str)
+                df = pl.from_pandas(df_pd)
 
                 # 1. Lọc các dòng có "Số hoá đơn TM" hợp lệ
                 df_valid = df.filter(
                     pl.col("Số hoá đơn TM").is_not_null() & 
-                    (pl.col("Số hoá đơn TM").cast(pl.String).str.strip_chars() != "")
+                    (pl.col("Số hoá đơn TM").str.strip_chars() != "") &
+                    (pl.col("Số hoá đơn TM") != "nan") &
+                    (pl.col("Số hoá đơn TM") != "None")
                 )
                 
                 # 2. Tìm nhóm trùng (Mã DN + Đơn vị đối tác + Số hoá đơn TM) có >= 2 Số TK khác nhau
@@ -132,13 +143,19 @@ with col2:
                 st.success(f"ĐÃ PHÁT HIỆN: {final_hd_df.height} DÒNG VI PHẠM TRÙNG HOÁ ĐƠN")
                 st.dataframe(final_hd_df.to_pandas(), use_container_width=True)
 
-                output_file_hd = "Ket_qua_Hoa_Don.xlsx"
-                final_hd_df.write_excel(output_file_hd)
-                with open(output_file_hd, "rb") as f:
-                    st.download_button(label="Tải Báo Cáo Hoá Đơn", data=f, file_name=output_file_hd, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                buffer_hd = io.BytesIO()
+                with pd.ExcelWriter(buffer_hd, engine="openpyxl") as writer:
+                    final_hd_df.to_pandas().to_excel(writer, index=False)
+                buffer_hd.seek(0)
+
+                st.download_button(
+                    label="Tải Báo Cáo Hoá Đơn",
+                    data=buffer_hd,
+                    file_name="Ket_qua_Hoa_Don.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
             except Exception as e:
                 st.error(f"[LỖI XỬ LÝ HOÁ ĐƠN]: {str(e)}")
-
 
 st.markdown("---")
 st.markdown("<p style='text-align: center; color: #6c757d; font-size: 13px;'><b>COPYRIGHT: HỒ LÂM TÙNG - 0988 767413 - CHI CỤC HẢI QUAN KHU VỰC VII</b></p>", unsafe_allow_html=True)
