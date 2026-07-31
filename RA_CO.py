@@ -10,7 +10,7 @@ st.markdown(
     """
 <div style="background-color: #f8f9fa; padding: 20px; border-radius: 14px; border-left: 14px solid #0d6efd; margin-bottom: 20px;">
 <h3 style="margin: 0; color: #0d6efd; font-family: sans-serif;">RÀ SOÁT DỮ LIỆU TRÙNG LẶP</h3>
-<p style="margin: 10px 0 0 0; color: #6c757d; font-size: 18px;">Tải lên file Excel vào đúng chức năng tương ứng để kiểm tra.</p>
+<p style="margin: 10px 0 0 0; color: #6c757d; font-size: 18px;">Bên trái: File exel tải tại chức năng Báo cáo Danh sách tờ khai; Bên phải: File exel tải tại chức năng Báo cáo Chi tiết hàng tờ khai; Lưu ý: Sau khi tải file exel về bắt buộc phải xoá 08 dòng đầu tiên để lấy tiêu đề các cột</p>
 </div>
 """,
     unsafe_allow_html=True,
