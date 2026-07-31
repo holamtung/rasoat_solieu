@@ -17,13 +17,20 @@ st.markdown(
 )
 
 
-# Hàm đọc Excel an toàn không lo lỗi engine/header
-def read_excel_safe(file_bytes):
-    try:
-        return pl.read_excel(io.BytesIO(file_bytes))
-    except Exception:
-        df_pd = pd.read_excel(io.BytesIO(file_bytes))
-        return pl.from_pandas(df_pd)
+# Hàm đọc Excel ép toàn bộ dữ liệu về kiểu String (chuỗi) để tránh lỗi trộn kiểu dữ liệu
+def read_excel_safe(uploaded_file, required_col=None):
+    file_bytes = uploaded_file.getvalue()
+
+    # Đọc với dtype=str để ép kiểu toàn bộ về chuỗi
+    df_pd = pd.read_excel(io.BytesIO(file_bytes), dtype=str)
+    df_pd.columns = df_pd.columns.astype(str).str.strip()
+
+    # Tự động skiprows=1 nếu chưa khớp tiêu đề
+    if required_col and required_col not in df_pd.columns:
+        df_pd = pd.read_excel(io.BytesIO(file_bytes), skiprows=1, dtype=str)
+        df_pd.columns = df_pd.columns.astype(str).str.strip()
+
+    return pl.from_pandas(df_pd)
 
 
 col1, col2 = st.columns(2)
@@ -43,8 +50,7 @@ with col1:
     if uploaded_file_bnn is not None:
         with st.spinner("Đang xử lý dữ liệu CO-BNN..."):
             try:
-                file_bytes = uploaded_file_bnn.read()
-                df = read_excel_safe(file_bytes)
+                df = read_excel_safe(uploaded_file_bnn, required_col="Số GP")
 
                 df_gp_dup = (
                     df.filter(
@@ -162,10 +168,9 @@ with col2:
     if uploaded_file_hd is not None:
         with st.spinner("Đang xử lý dữ liệu Hoá đơn..."):
             try:
-                file_bytes = uploaded_file_hd.read()
-                df = read_excel_safe(file_bytes)
+                df = read_excel_safe(uploaded_file_hd, required_col="Số hoá đơn TM")
 
-                # Chuẩn hóa tên cột nếu chứa "đơn TM"
+                # Chuẩn hóa nếu tiêu đề ghi là "Số hóa đơn TM" (chữ o)
                 rename_dict = {
                     col: "Số hoá đơn TM"
                     for col in df.columns
@@ -177,14 +182,9 @@ with col2:
                 # 1. Lọc các dòng có "Số hoá đơn TM" hợp lệ
                 df_valid = df.filter(
                     pl.col("Số hoá đơn TM").is_not_null()
-                    & (
-                        pl.col("Số hoá đơn TM")
-                        .cast(pl.String)
-                        .str.strip_chars()
-                        != ""
-                    )
-                    & (pl.col("Số hoá đơn TM").cast(pl.String) != "nan")
-                    & (pl.col("Số hoá đơn TM").cast(pl.String) != "None")
+                    & (pl.col("Số hoá đơn TM").str.strip_chars() != "")
+                    & (pl.col("Số hoá đơn TM") != "nan")
+                    & (pl.col("Số hoá đơn TM") != "None")
                 )
 
                 # 2. Tìm nhóm trùng (Mã DN + Đơn vị đối tác + Số hoá đơn TM) có >= 2 Số TK khác nhau
