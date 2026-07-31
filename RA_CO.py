@@ -129,6 +129,6 @@ if uploaded_file is not None:
 
 st.markdown("---")
 st.markdown(
-    "<p style='text-align: center; color: #6c757d; font-size: 13px;'><b>COPYRIGHT: HỒ LÂM TÙNG</b></p>",
+    "<p style='text-align: center; color: #6c757d; font-size: 13px;'><b>COPYRIGHT: HỒ LÂM TÙNG - CHI CỤC HẢI QUAN KHU VỰC VII</b></p>",
     unsafe_allow_html=True,
 )
