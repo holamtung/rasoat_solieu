@@ -5,9 +5,9 @@ import streamlit as st
 
 st.markdown(
     """
-<div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 5px solid #0d6efd; margin-bottom: 15px;">
+<div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 10px solid #0d6efd; margin-bottom: 20px;">
 <h3 style="margin: 0; color: #0d6efd; font-family: sans-serif;">RÀ SOÁT DỮ LIỆU TRÙNG LẶP (SỐ BNN & Số C/O)</h3>
-<p style="margin: 5px 0 0 0; color: #6c757d; font-size: 14px;">Hướng dẫn: File Exel tải về bắt buộc phải xoá toàn bộ 07 dòng đầu tiên, chỉ để lại phần tiêu đề của các cột.</p>
+<p style="margin: 10px 0 0 0; color: #6c757d; font-size: 10px;">Hướng dẫn: File Exel tải về bắt buộc phải xoá toàn bộ 07 dòng đầu tiên, chỉ để lại phần tiêu đề của các cột.</p>
 </div>
 """,
     unsafe_allow_html=True,
