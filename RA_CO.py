@@ -1,6 +1,6 @@
 # @title
 # 1. Cài đặt và import các thư viện cần thiết
-!pip -q install polars openpyxl xlsxwriter ipywidgets fastexcel
+pip -q install polars openpyxl xlsxwriter ipywidgets fastexcel
 
 import io
 import time
