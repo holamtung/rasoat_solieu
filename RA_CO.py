@@ -221,6 +221,6 @@ with col2:
 
 st.markdown("---")
 st.markdown(
-    "<p style='text-align: center; color: #6c757d; font-size: 13px;'><b>COPYRIGHT: HỒ LÂM TÙNG - 0988 767413 - CHI CỤC HẢI QUAN KHU VỰC VII</b></p>",
+    "<p style='text-align: center; color: #6c757d; font-size: 25px;'>< Bản quyền thuộc về: HỒ LÂM TÙNG - 0988 767413 - CHI CỤC HẢI QUAN KHU VỰC VII</b></p>",
     unsafe_allow_html=True,
 )
