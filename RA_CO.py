@@ -291,7 +291,7 @@ st.markdown(
     RÀ SOÁT DỮ LIỆU TRÙNG LẶP
   </h3>
   <p style="margin: 10px 0 0 0; color: #6c757d; font-size: 18px;">
-    Tải tệp Excel xuất từ SLXNK. Công cụ tự nhận diện dòng tiêu đề trong 30 dòng đầu.
+    Hướng dẫn: Bên trái upload file exel tải từ báo cáo Danh sách tờ khai trên phần mềm SLXNK; Bên phải là file từ Báo cáo danh sách chi tiết hàng tờ khai; Lưu ý: File exel tải về bắt buộc xoá 8 dòng đầu tiên để công cụ nhận diện đúng tiêu đề các cột.
   </p>
 </div>
 """,
